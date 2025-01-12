@@ -10,8 +10,6 @@ uv pip install -r requirements.txt
 - try and refactor code / understand. make it "more equinoxy"
 - proper example (i.e., fit the model, replicate the yaml)
 
-#### BOT suggestions:
-
 **Training loop would involve:**
 
 - Loss function (negative log likelihood)
