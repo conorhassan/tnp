@@ -1,3 +1,8 @@
+# Installation guide
+```
+python -m venv .venv
+uv pip install -r requirements.txt
+```
 # TODO: 
 
 - training loop 
@@ -7,29 +12,23 @@
 
 #### BOT suggestions:
 
-Great list! Let's tackle these one at a time. Which would you like to start with?
+**Training loop would involve:**
 
-Training loop would involve:
-
-Loss function (negative log likelihood)
-Optimizer (optax)
-Batch generation
-Training step with JIT
-Jaxtyping integration would make the code more type-safe:
-
-from jaxtyping import Array, Float, Int
-Copy
-And add proper shape annotations
+- Loss function (negative log likelihood)
+- Optimizer (optax)
+- Batch generation
+- *jitted* training step
+- *WanDB* integration?
 
 "More equinoxy" refactoring would include:
-
-Using dataclasses properly
-Better module composition
-Proper filtering for training/inference
+- Using dataclasses properly
+- Better module composition
+- Proper filtering for training/inference
+  - really interested in this! 
 Config management
 Proper example would involve:
 
 Heteroskedastic regression demo
-Visualization
-Config matching original implementation
-Which area would you like to explore first?
+- Visualization
+- Config matching original implementation
+  - use MA's config as a guide
