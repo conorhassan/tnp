@@ -2,25 +2,17 @@ from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp 
 import equinox as eqx 
-import numpyro.distributions as dist
-
+import tensorflow_probability.substrates.jax as tfp
+tfd = tfp.distributions
 
 class Likelihood(eqx.Module, ABC):
-    """Base class for likelihood functions. 
-    
-    All likelihood implementations should inherit from this 
-    class and implement the __call__ method.
-    """
+    """Base class for likelihood functions."""
     @abstractmethod 
-    def __call__(self, x: jnp.ndarray) -> dist.Distribution:
+    def __call__(self, x: jnp.ndarray) -> tfd.Distribution:
         raise NotImplementedError
     
 class NormalLikelihood(Likelihood):
-    """Fixed-variance normal likelihood.
-    
-    Attributes: 
-        log_noise: Learnable log noise parameter. 
-        train_noise: Whether to update noise during training."""
+    """Fixed-variance normal likelihood."""
     log_noise: jnp.ndarray
     train_noise: bool 
 
@@ -32,30 +24,19 @@ class NormalLikelihood(Likelihood):
     def noise(self):
         return jnp.exp(self.log_noise)
     
-    def __call__(self, x: jnp.ndarray) -> dist.Normal:
-        return dist.Normal(x, self.noise)
+    def __call__(self, x: jnp.ndarray) -> tfd.Normal:
+        return tfd.Normal(loc=x, scale=self.noise)
     
-
 class HeteroscedasticNormalLikelihood(Likelihood):
-    """Variable-variance normal likelihood. 
-    
-    Attributes: 
-        min_noise: Minimum noise level to add
-    """
+    """Variable-variance normal likelihood."""
     min_noise: float 
 
     def __init__(self, min_noise: float = 0.0):
         self.min_noise = min_noise 
 
-    def __call__(self, x: jnp.ndarray) -> dist.Normal: 
-        # Check even number of features for mean/variance pairs.
+    def __call__(self, x: jnp.ndarray) -> tfd.Normal: 
         assert x.shape[-1] % 2 == 0 
-
-        # Split into location and log variance
         split_idx = x.shape[-1] // 2 
         loc, log_var = x[..., :split_idx], x[..., split_idx:]
-
-        # Compute scale 
         scale = jnp.sqrt(jax.nn.softplus(log_var)) + self.min_noise
-
-        return dist.Normal(loc, scale)
+        return tfd.Normal(loc=loc, scale=scale)

@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import equinox as eqx 
 from jaxtyping import Array, Float
 from typing import Tuple
-from einops import rearrange, pack, unpack
+from einops import pack, unpack
 
 
 class TNPEncoder(eqx.Module):
@@ -46,10 +46,11 @@ class TNPEncoder(eqx.Module):
         Returns:
             jnp.ndarray: Encoded representations [batch, num_points, latent_dim]
         """
-        print("x_encoder type:", type(self.x_encoder))
-
         yc, yt = self.preprocess_observations(xt, yc)
 
+        print("In encoder before pack:")
+        print(f"xc shape: {xc.shape}")
+        print(f"xt shape: {xt.shape}")
         # Encode x values
         x, ps = pack([xc, xt], "b * d")
         x_encoded = self.x_encoder(x)
@@ -59,10 +60,9 @@ class TNPEncoder(eqx.Module):
         y, ps = pack([yc, yt], "b * d")
         y_encoded = self.y_encoder(y)
         yc_encoded, yt_encoded = unpack(y_encoded, ps, "b * d")
-        
-        # Join encodings
-        zc = rearrange([xc_encoded, yc_encoded], "n b s d -> b s (n d)")
-        zt = rearrange([xt_encoded, yt_encoded], "n b s d -> b s (n d)")
+
+        zc, _ = pack([xc_encoded, yc_encoded], "b s *")
+        zt, _ = pack([xt_encoded, yt_encoded], "b s *")
         
         # Apply xy encoder
         zc = self.xy_encoder(zc)
