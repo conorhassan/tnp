@@ -30,3 +30,27 @@ Heteroskedastic regression demo
 - Visualization
 - Config matching original implementation
   - use MA's config as a guide
+Visualization
+Config matching original implementation
+Which area would you like to explore first?
+
+- need to adjust the file structure 
+
+- need to have data loader code
+
+- need to have the data 
+
+- need to have training code 
+
+- set up training on WANDB 
+
+- need to "manage" the package better
+
+
+### Notes for transition to CLUSTER: 
+
+Add it in your job submission script (e.g., your .sh file):
+
+bashCopyexport PYTHONPATH=$PYTHONPATH:/path/to/transformer_neural_process
+
+Also set up the computer so that you can `.ssh` into it from your MAC and test GPU-enabled code :) 
