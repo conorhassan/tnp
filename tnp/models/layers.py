@@ -35,9 +35,9 @@ class AttentionBlock(eqx.Module):
 
     def __call__(
         self,
-        x: jnp.ndarray,
+        x: Float[Array, "seq dim"],
         enable_dropout: bool,
-        key) -> jnp.ndarray:
+        key) -> Float[Array, "seq dim"]:
         input_x = jax.vmap(self.layer_norm1)(x)
         x = x + self.attention(input_x, input_x, input_x)
 
@@ -47,14 +47,11 @@ class AttentionBlock(eqx.Module):
 
         key1, key2 = jax.random.split(key, num=2)
 
-        input_x = self.dropout1(input_x, inference=not enable_dropout, key=key1)
+        input_x = self.dropout1(input_x, inference=enable_dropout, key=key1)
         input_x = jax.vmap(self.linear2)(input_x)
-        input_x = self.dropout2(input_x, inference=not enable_dropout, key=key2)
+        input_x = self.dropout2(input_x, inference=enable_dropout, key=key2)
 
-        x = x + input_x
-
-        return x
-
+        return x + input_x
 
 class TNPTransformer(eqx.Module):
     """Transformer component for neural process. 
@@ -93,12 +90,12 @@ class TNPTransformer(eqx.Module):
         )
     
     def __call__(self, 
-                 zc: Float[Array, "batch num_context dim"],
-                 zt: Float[Array, "batch num_target dim"], 
+                 zc: Float[Array, "num_context dim"],
+                 zt: Float[Array, "num_target dim"], 
                  *, 
                  key: jax.random.PRNGKey, 
                  enable_dropout: bool = False
-    ) -> Float[Array, "batch num_target dim"]:
+    ) -> Float[Array, "num_target dim"]:
         """Process context and target sequences through transformer.
         
         Args:
@@ -108,59 +105,40 @@ class TNPTransformer(eqx.Module):
         Returns:
             Processed target encodings
         """
-        def transform_batch(
-                zc_batch: Float[Array, "batch num_context dim"], 
-                zt_batch: Float[Array, "batch num_target dim"], 
-                key: jax.random.PRNGKey
-        ) -> Float[Array, "batch num_target dim"]:
-            """Transform a single batch through the attention block.
-            
-            Concatenates context and target sequences, applies self-attention,
-            and extracts the transformed target representations.
-            
-            Args:
-                zc_batch: Single batch of context encodings
-                zt_batch: Single batch of target encodings
-                
-            Returns:
-                Transformed target encodings after attending to context
-            """
-            z = jnp.concatenate([zc_batch, zt_batch])
-            z = self.transformer(z, enable_dropout=enable_dropout, key=key)
-            return z[-zt_batch.shape[0]:]
-        
-        batch_size = zc.shape[0]
-        keys = jax.random.split(key, batch_size)
-        return jax.vmap(transform_batch)(zc, zt, keys)
+        z = jnp.concatenate([zc, zt])
+        z = self.transformer(z, enable_dropout=enable_dropout, key=key)
+        return z[-zt.shape[0]:]
 
 
 def make_mlp(in_dim: int, out_dim: int, key: jax.random.PRNGKey) -> eqx.Module:
-    class BatchedMLP(eqx.Module):
+    """
+    Make an MLP with a given input and output dimension. 
+
+    Args:
+        in_dim (int): 
+        out_dim (int):
+        key (jax.random.PRNGKey): 
+
+    Returns:
+        eqx.Module:
+    """
+    class MLP(eqx.Module):
         layers: list
-        
-        def __init__(self, in_dim, out_dim, key, width_size=64, depth=3):
+
+        def __init__(self, in_dim: int, out_dim: int, key: jax.random.PRNGKey, width_size: int = 64, depth: int = 3):
             keys = jax.random.split(key, depth)
-            
-            # Create dimensions for each layer
             dims = [in_dim] + [width_size] * (depth-1) + [out_dim]
-            
-            # Create layers
             self.layers = []
-            for i in range(depth):
+            for idx in range(depth):
                 self.layers.append(
-                    eqx.nn.Linear(dims[i], dims[i+1], key=keys[i])
+                    eqx.nn.Linear(dims[idx], dims[idx+1], key=keys[idx])
                 )
-        
+
         def __call__(self, x):
-            # TODO: there is 
-            # Double vmap each layer with activation
             for i, layer in enumerate(self.layers):
-                batched_layer = jax.vmap(jax.vmap(layer))
-                x = batched_layer(x)
-                # ReLU on all but last layer
+                x = jax.vmap(layer)(x)
                 if i < len(self.layers) - 1:
                     x = jax.nn.relu(x)
-                    
             return x
 
-    return BatchedMLP(in_dim, out_dim, key)
+    return MLP(in_dim, out_dim, key)

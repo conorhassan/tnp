@@ -51,6 +51,7 @@ class ConditionalNeuralProcess(NeuralProcess):
         """
         z = self.encoder(xc, yc, xt, key=key, enable_dropout=enable_dropout)
         pred = self.decoder(z, xt)
+
         return self.likelihood(pred)
     
 

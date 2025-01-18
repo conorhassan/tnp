@@ -10,6 +10,11 @@ from tnp.models.decoder import TNPDecoder
 from tnp.models.neural_process import TNP
 from tnp.models.layers import TNPTransformer, make_mlp
 
+from tnp.models.gp import RBFKernel
+from tnp.data.gp import RandomScaleGPGeneratorSameInputs
+
+from tnp.data.gp_redo import SimpleGPGenerator
+
 def create_model_and_optimizer(
     input_dim: int, 
     output_dim: int, 
@@ -72,71 +77,31 @@ if __name__ == "__main__":
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
 
-    # dummy data 
-    batch_size = 4 
-    nc, nt = 5, 10 
+    generator = SimpleGPGenerator()
+    xc, yc, xt, yt = generator.generate_batch(key)
 
-    xc = jnp.zeros((batch_size, nc, input_dim))
-    yc = jnp.zeros((batch_size, nc, output_dim))
-    xt = jnp.zeros((batch_size, nt, input_dim))
-    yt = jnp.ones((batch_size, nt, output_dim)) 
-
-    # try forward pass
+    # evaluate lo
     key, subkey = jax.random.split(key)
-    pred_dist = model(xc, yc, xt, key=subkey)
 
-    log_prob = jnp.mean(pred_dist.log_prob(yt), axis=(1, 2))
-
-    print(log_prob)
-    print(log_prob.shape)
-
-    # optimizer.init(model)
-    print("Model success")
-
-    params = eqx.filter(model, eqx.is_array)
-    opt_state = optimizer.init(params)
-
-    from functools import partial
-
-    def batched_forward(xc, yc, xt):
-        return model(xc, yc, xt, key=subkey)
-    
-    print("Before model:", xc.shape)
-    pred_dist = batched_forward(xc, yc, xt)
-
-    
     def loss_fn(model):
-
-        @jax.vmap 
+        @jax.vmap
         def batched_forward(xc, yc, xt):
             return model(xc, yc, xt, key=subkey)
-        
-
         pred_dist = batched_forward(xc, yc, xt)
-        log_prob = jnp.mean(pred_dist.log_prob(yt), axis=(1, 2))
-        return -log_prob
-    
-    
-    # def loss_fn(model):
+        log_prob = pred_dist.log_prob(yt)
+        return -jnp.mean(log_prob)
 
-    #     def forward_pass(xc, yc, xt, key):
-    #         return model(xc, yc, xt, key=key)
-        
-    #     forward_pass = partial(forward_pass, key=subkey)
-        
-    #     pred_dist = jax.vmap(forward_pass, in_axes=(0, 0, 0))(xc, yc, xt)
-    #     log_prob = jnp.mean(pred_dist.log_prob(yt), axis=(1, 2))
-    #     return -log_prob
-    
+    print(loss_fn(model))
+    print("Successfully evaluated the loss!")
+
+    # optimizer.init(model)
     loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
-
     updates, opt_state = optimizer.update(grads, opt_state, model)
     model = eqx.apply_updates(model, updates)
 
+    loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
     print(loss)
-    print(grads)
 
-
-    print("Initialized the model :)")
+    print("Updated the model!")
 
 

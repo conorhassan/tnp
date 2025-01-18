@@ -29,13 +29,13 @@ class TNPEncoder(eqx.Module):
 
     def __call__(
         self, 
-        xc: Float[Array, "batch num_context input_dim"], 
-        yc: Float[Array, "batch num_context output_dim"], 
-        xt: Float[Array, "batch num_target input_dim"],
+        xc: Float[Array, "num_context input_dim"], 
+        yc: Float[Array, "num_context output_dim"], 
+        xt: Float[Array, "num_target input_dim"],
         *, 
         key: jax.random.PRNGKey, 
         enable_dropout: bool = False
-    ) -> Float[Array, "batch num_target latent_dim"]:
+    ) -> Float[Array, "num_target latent_dim"]:
         """Encode context and target sets into latent representations.
         
         Args:
@@ -44,30 +44,27 @@ class TNPEncoder(eqx.Module):
             xt: Target inputs with shape [batch, num_targets, input_dim]
             
         Returns:
-            jnp.ndarray: Encoded representations [batch, num_points, latent_dim]
+            jnp.ndarray: Encoded representations [num_points, latent_dim]
         """
         yc, yt = self.preprocess_observations(xt, yc)
 
-        print("In encoder before pack:")
-        print(f"xc shape: {xc.shape}")
-        print(f"xt shape: {xt.shape}")
         # Encode x values
-        x, ps = pack([xc, xt], "b * d")
+        x, ps = pack([xc, xt], "* d")
         x_encoded = self.x_encoder(x)
-        xc_encoded, xt_encoded = unpack(x_encoded, ps, "b * d")
-        
-        # Encode y values
-        y, ps = pack([yc, yt], "b * d")
-        y_encoded = self.y_encoder(y)
-        yc_encoded, yt_encoded = unpack(y_encoded, ps, "b * d")
+        xc_encoded, xt_encoded = unpack(x_encoded, ps, "* d")
 
-        zc, _ = pack([xc_encoded, yc_encoded], "b s *")
-        zt, _ = pack([xt_encoded, yt_encoded], "b s *")
-        
+        # Encode y values
+        y, ps = pack([yc, yt], "* d")
+        y_encoded = self.y_encoder(y)
+        yc_encoded, yt_encoded = unpack(y_encoded, ps, "* d")
+
+        zc, _ = pack([xc_encoded, yc_encoded], "s *")
+        zt, _ = pack([xt_encoded, yt_encoded], "s *")
+
         # Apply xy encoder
         zc = self.xy_encoder(zc)
         zt = self.xy_encoder(zt)
-        
+
         # Apply transformer
         output = self.transformer_encoder(zc, zt, key=key, enable_dropout=enable_dropout)
     
@@ -76,10 +73,10 @@ class TNPEncoder(eqx.Module):
     
     def preprocess_observations(
         self,
-        xt: Float[Array, "batch num_target input_dim"], 
-        yc: Float[Array, "batch num_context output_dim"]
-        ) -> Tuple[Float[Array, "batch num_context output_dim_plus_1"], 
-                Float[Array, "batch num_target output_dim_plus_1"]]:
+        xt: Float[Array, "num_target input_dim"], 
+        yc: Float[Array, "num_context output_dim"]
+        ) -> Tuple[Float[Array, "num_context output_dim_plus_1"], 
+                Float[Array, "num_target output_dim_plus_1"]]:
             """Preprocess observations by adding mask channels. 
             
             Args: 
@@ -91,7 +88,7 @@ class TNPEncoder(eqx.Module):
                 where each has an additional mask channel (0 for context, 1 for targets)
             """
             # Create zero tensor for target outputs matching context shape
-            yt = jnp.zeros((xt.shape[0], xt.shape[1], yc.shape[-1]))
+            yt = jnp.zeros((xt.shape[0], yc.shape[-1]))
             
             # Add mask channels
             yc = jnp.concatenate([yc, jnp.zeros_like(yc[..., :1])], axis=-1)

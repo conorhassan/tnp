@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod 
 import jax
-import jax.numpy as jnp
-from gpjax.kernels.stationary.base import StationaryKernel 
-from gpjax.kernels.stationary.utils import squared_distance
-from jaxtyping import Float 
-from gpjax.typing import Array, ScalarFloat 
+from gpjax.kernels.stationary.base import StationaryKernel
+from gpjax.kernels.stationary.rbf import RBF
 
 
 class RandomHyperparameterKernel(ABC):

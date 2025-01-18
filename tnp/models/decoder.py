@@ -19,12 +19,14 @@ class TNPDecoder(eqx.Module):
 
     def __call__(
         self, 
-        z: Float[Array, "batch num_target latent_dim"], 
-        xt: Optional[Float[Array, "batch  num_target input_dim"]] = None, 
-    )-> Float[Array, "batch num_target output_dim"]:
+        z: Float[Array, "num_target latent_dim"], 
+        xt: Optional[Float[Array, "num_target input_dim"]] = None, 
+    )-> Float[Array, "num_target output_dim"]:
         """Process latent representations to make predictions.
         
         TODO: docstring needs an update...
+        TODO: also need to update the docstring to say that the batch dimension has been removed because 
+        of how the vmap operation works 
 
         Args:
             z: jnp.ndarray
@@ -39,10 +41,10 @@ class TNPDecoder(eqx.Module):
         # 
         if xt is not None:
             # Just take the last num_target points
-            num_target = xt.shape[1]
+            num_target = xt.shape[0]
             zt = rearrange(
-                z[:, -num_target:, :], 
-                "b t d -> b t d"
+                z[-num_target:, :], 
+                "t d -> t d"
             )
         else: 
             zt = z # Use all latent variables 

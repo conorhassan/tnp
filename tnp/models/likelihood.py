@@ -2,13 +2,12 @@ from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp 
 import equinox as eqx 
-import tensorflow_probability.substrates.jax as tfp
-tfd = tfp.distributions
+import numpyro.distributions as dist
 
 class Likelihood(eqx.Module, ABC):
     """Base class for likelihood functions."""
     @abstractmethod 
-    def __call__(self, x: jnp.ndarray) -> tfd.Distribution:
+    def __call__(self, x: jnp.ndarray) -> dist.Distribution:
         raise NotImplementedError
     
 class NormalLikelihood(Likelihood):
@@ -24,8 +23,8 @@ class NormalLikelihood(Likelihood):
     def noise(self):
         return jnp.exp(self.log_noise)
     
-    def __call__(self, x: jnp.ndarray) -> tfd.Normal:
-        return tfd.Normal(loc=x, scale=self.noise)
+    def __call__(self, x: jnp.ndarray) -> dist.Normal:
+        return dist.Normal(x, self.noise)
     
 class HeteroscedasticNormalLikelihood(Likelihood):
     """Variable-variance normal likelihood."""
@@ -34,9 +33,9 @@ class HeteroscedasticNormalLikelihood(Likelihood):
     def __init__(self, min_noise: float = 0.0):
         self.min_noise = min_noise 
 
-    def __call__(self, x: jnp.ndarray) -> tfd.Normal: 
+    def __call__(self, x: jnp.ndarray) -> dist.Normal: 
         assert x.shape[-1] % 2 == 0 
         split_idx = x.shape[-1] // 2 
         loc, log_var = x[..., :split_idx], x[..., split_idx:]
         scale = jnp.sqrt(jax.nn.softplus(log_var)) + self.min_noise
-        return tfd.Normal(loc=loc, scale=scale)
+        return dist.Normal(loc, scale)
