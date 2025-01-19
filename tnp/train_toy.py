@@ -10,8 +10,9 @@ from tnp.models.decoder import TNPDecoder
 from tnp.models.neural_process import TNP
 from tnp.models.layers import TNPTransformer, make_mlp
 
-from tnp.models.gp import RBFKernel
-from tnp.data.gp import RandomScaleGPGeneratorSameInputs
+from collections import deque
+# from tnp.models.gp import RBFKernel
+# from tnp.data.gp import RandomScaleGPGeneratorSameInputs
 
 from tnp.data.gp_redo import SimpleGPGenerator
 
@@ -53,7 +54,7 @@ def create_model_and_optimizer(
     )
 
     # create optimizer
-    optimizer = optax.adamw(learning_rate)
+    optimizer = optax.chain(optax.adamw(learning_rate), optax.clip(0.1))
 
     return model, optimizer
 
@@ -77,31 +78,49 @@ if __name__ == "__main__":
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
 
+    # create data generator
     generator = SimpleGPGenerator()
-    xc, yc, xt, yt = generator.generate_batch(key)
 
-    # evaluate lo
+    # initialize key
     key, subkey = jax.random.split(key)
 
-    def loss_fn(model):
-        @jax.vmap
-        def batched_forward(xc, yc, xt):
-            return model(xc, yc, xt, key=subkey)
-        pred_dist = batched_forward(xc, yc, xt)
+    def forward(model, xc, yc, xt, key, enable_dropout):  # Add enable_dropout param
+        return model(xc, yc, xt, key, enable_dropout)
+
+    batched_forward = jax.vmap(forward, in_axes=(None, 0, 0, 0, None, None))  # None for enable_dropout
+
+    def loss_fn(model, xc, yc, xt, yt, key, enable_dropout=False):  # Add enable_dropout with default
+        pred_dist = batched_forward(model, xc, yc, xt, key, enable_dropout)
         log_prob = pred_dist.log_prob(yt)
         return -jnp.mean(log_prob)
 
-    print(loss_fn(model))
-    print("Successfully evaluated the loss!")
+    @eqx.filter_jit
+    def train_step(model, opt_state, xc, yc, xt, yt, key):
+        loss, grads = eqx.filter_value_and_grad(loss_fn)(model, xc, yc, xt, yt, key, True)
+        updates, opt_state = optimizer.update(grads, opt_state, model)
+        model = eqx.apply_updates(model, updates)
+        return model, opt_state, loss
+    
+    num_steps = 3000
+    
+    losses = deque(maxlen=100)
 
-    # optimizer.init(model)
-    loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
-    updates, opt_state = optimizer.update(grads, opt_state, model)
-    model = eqx.apply_updates(model, updates)
+    for step in range(num_steps):
+        key, data_key, model_key = jax.random.split(key, 3)
+        xc, yc, xt, yt = generator.generate_batch(data_key)
+        model, opt_state, loss = train_step(model, opt_state, xc, yc, xt, yt, model_key)
+        losses.append(loss)
+        avg_loss = sum(losses) / len(losses)
+        print(f"Step {step}, Loss: {avg_loss:.4f}")
 
-    loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
-    print(loss)
-
-    print("Updated the model!")
+    
+    pred_dist = batched_forward(model, xc, yc, xt, key, False)
 
 
+    # Sample from distribution
+    key, sampling_key = jax.random.split(key)
+    samples = jax.vmap(lambda d: d.sample(key=sampling_key, sample_shape=(100,)))(pred_dist)
+
+    print(jnp.mean(samples, axis=1)[0, :, 0])
+    print(yt[0, :, 0])
+    print("FIN")

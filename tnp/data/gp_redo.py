@@ -20,7 +20,7 @@ class SimpleGPGenerator:
         max_nc: int=50, 
         min_nt: int=3, 
         max_nt: int=50,
-        batch_size: int=64
+        batch_size: int=32
     ):
         self.kernel = kernel
         self.noise_std = noise_std 
@@ -98,20 +98,20 @@ class SimpleGPGenerator:
         return xc, yc, xt, yt
     
     
+# # TEST THE ABILITY TO GENERATE DATA BATCHES
+# if __name__ == "__main__":
+#     key = jax.random.PRNGKey(2)
+#     generator = SimpleGPGenerator()
+#     xc, xt, nc, nt = generator.sample_inputs(key)
+#     yc = generator.sample_outputs(xc, key)
+#     xc, yc, xt, yt = generator.generate_batch(key)
 
-if __name__ == "__main__":
-    key = jax.random.PRNGKey(2)
-    generator = SimpleGPGenerator()
-    xc, xt, nc, nt = generator.sample_inputs(key)
-    yc = generator.sample_outputs(xc, key)
-    xc, yc, xt, yt = generator.generate_batch(key)
-
-        # Plot a few examples
-    plt.figure(figsize=(10, 5))
-    for i in range(3):  # Plot first 3 batch elements
-        plt.subplot(1, 3, i+1)
-        plt.scatter(xc[i, :, 0], yc[i, :, 0], label='context', alpha=0.6)
-        plt.scatter(xt[i, :, 0], yt[i, :, 0], label='target', alpha=0.6)
-        plt.legend()
-    plt.tight_layout()
-    plt.show()
+#         # Plot a few examples
+#     plt.figure(figsize=(10, 5))
+#     for i in range(3):  # Plot first 3 batch elements
+#         plt.subplot(1, 3, i+1)
+#         plt.scatter(xc[i, :, 0], yc[i, :, 0], label='context', alpha=0.6)
+#         plt.scatter(xt[i, :, 0], yt[i, :, 0], label='target', alpha=0.6)
+#         plt.legend()
+#     plt.tight_layout()
+#     plt.show()

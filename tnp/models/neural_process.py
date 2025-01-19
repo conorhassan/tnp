@@ -35,7 +35,6 @@ class ConditionalNeuralProcess(NeuralProcess):
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"],
         xt: Float[Array, "batch num_target input_dim"], 
-        *, 
         key: jax.random.PRNGKey, 
         enable_dropout: bool = False
     ) -> dist.Distribution:
@@ -49,7 +48,7 @@ class ConditionalNeuralProcess(NeuralProcess):
         Returns:
             Distribution over target outputs
         """
-        z = self.encoder(xc, yc, xt, key=key, enable_dropout=enable_dropout)
+        z = self.encoder(xc, yc, xt, key, enable_dropout)
         pred = self.decoder(z, xt)
 
         return self.likelihood(pred)
@@ -78,7 +77,6 @@ class TNP(ConditionalNeuralProcess):
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"], 
         xt: Float[Array, "batch num_target input_dim"], 
-        *, 
         key: jax.random.PRNGKey, 
         enable_dropout: bool = False
     ) -> dist.Distribution:
@@ -92,4 +90,4 @@ class TNP(ConditionalNeuralProcess):
         Returns:
             numpyro.distributions.Distribution: Predicted distribution over target outputs
         """
-        return super().__call__(xc, yc, xt, key=key, enable_dropout=enable_dropout)
+        return super().__call__(xc, yc, xt, key, enable_dropout)
