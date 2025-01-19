@@ -32,7 +32,6 @@ class TNPEncoder(eqx.Module):
         xc: Float[Array, "num_context input_dim"], 
         yc: Float[Array, "num_context output_dim"], 
         xt: Float[Array, "num_target input_dim"],
-        *, 
         key: jax.random.PRNGKey, 
         enable_dropout: bool = False
     ) -> Float[Array, "num_target latent_dim"]:
