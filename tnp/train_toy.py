@@ -83,13 +83,23 @@ if __name__ == "__main__":
     # evaluate lo
     key, subkey = jax.random.split(key)
 
+    def forward(xc, yc, xt, key):
+        return model(xc, yc, xt, key)
+    
+    batched_forward = jax.vmap(forward, in_axes=(0, 0, 0, None))
+
     def loss_fn(model):
-        @jax.vmap
-        def batched_forward(xc, yc, xt):
-            return model(xc, yc, xt, key=subkey)
-        pred_dist = batched_forward(xc, yc, xt)
+        pred_dist = batched_forward(xc, yc, xt, key)
         log_prob = pred_dist.log_prob(yt)
         return -jnp.mean(log_prob)
+
+    # def loss_fn(model):
+    #     @jax.vmap
+    #     def batched_forward(xc, yc, xt):
+    #         return model(xc, yc, xt, key=subkey)
+    #     pred_dist = batched_forward(xc, yc, xt)
+    #     log_prob = pred_dist.log_prob(yt)
+    #     return -jnp.mean(log_prob)
 
     print(loss_fn(model))
     print("Successfully evaluated the loss!")
