@@ -10,8 +10,8 @@ from tnp.models.decoder import TNPDecoder
 from tnp.models.neural_process import TNP
 from tnp.models.layers import TNPTransformer, make_mlp
 
-from tnp.models.gp import RBFKernel
-from tnp.data.gp import RandomScaleGPGeneratorSameInputs
+# from tnp.models.gp import RBFKernel
+# from tnp.data.gp import RandomScaleGPGeneratorSameInputs
 
 from tnp.data.gp_redo import SimpleGPGenerator
 
@@ -77,41 +77,31 @@ if __name__ == "__main__":
     params = eqx.filter(model, eqx.is_array)
     opt_state = optimizer.init(params)
 
+    # create data generator
     generator = SimpleGPGenerator()
-    xc, yc, xt, yt = generator.generate_batch(key)
 
-    # evaluate lo
+    # initialize key
     key, subkey = jax.random.split(key)
 
-    def forward(xc, yc, xt, key):
-        return model(xc, yc, xt, key)
-    
-    batched_forward = jax.vmap(forward, in_axes=(0, 0, 0, None))
+    def forward(model, xc, yc, xt, key, enable_dropout):  # Add enable_dropout param
+        return model(xc, yc, xt, key, enable_dropout)
 
-    def loss_fn(model):
-        pred_dist = batched_forward(xc, yc, xt, key)
+    batched_forward = jax.vmap(forward, in_axes=(None, 0, 0, 0, None, None))  # None for enable_dropout
+
+    @eqx.filter_jit
+    def loss_fn(model, xc, yc, xt, yt, key, enable_dropout=False):  # Add enable_dropout with default
+        pred_dist = batched_forward(model, xc, yc, xt, key, enable_dropout)
         log_prob = pred_dist.log_prob(yt)
         return -jnp.mean(log_prob)
 
-    # def loss_fn(model):
-    #     @jax.vmap
-    #     def batched_forward(xc, yc, xt):
-    #         return model(xc, yc, xt, key=subkey)
-    #     pred_dist = batched_forward(xc, yc, xt)
-    #     log_prob = pred_dist.log_prob(yt)
-    #     return -jnp.mean(log_prob)
+    num_steps = 10
+    
+    for step in range(num_steps):
+        key, subkey = jax.random.split(key)
+        xc, yc, xt, yt = generator.generate_batch(subkey)
 
-    print(loss_fn(model))
-    print("Successfully evaluated the loss!")
+        loss, grads = eqx.filter_value_and_grad(loss_fn)(model, xc, yc, xt, yt, key, True)
+        updates, opt_state = optimizer.update(grads, opt_state, model)
+        model = eqx.apply_updates(model, updates)
 
-    # optimizer.init(model)
-    loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
-    updates, opt_state = optimizer.update(grads, opt_state, model)
-    model = eqx.apply_updates(model, updates)
-
-    loss, grads = eqx.filter_value_and_grad(loss_fn)(model)
-    print(loss)
-
-    print("Updated the model!")
-
-
+        print(f"Step {step}, Loss: {loss:.4f}")
