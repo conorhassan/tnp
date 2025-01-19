@@ -30,12 +30,12 @@ class HeteroscedasticNormalLikelihood(Likelihood):
     """Variable-variance normal likelihood."""
     min_noise: float 
 
-    def __init__(self, min_noise: float = 0.0):
+    def __init__(self, min_noise: float = 0.01):
         self.min_noise = min_noise 
 
     def __call__(self, x: jnp.ndarray) -> dist.Normal: 
         assert x.shape[-1] % 2 == 0 
         split_idx = x.shape[-1] // 2 
-        loc, log_var = x[..., :split_idx], x[..., split_idx:]
-        scale = jnp.sqrt(jax.nn.softplus(log_var)) + self.min_noise
+        loc, log_scale = x[..., :split_idx], x[..., split_idx:]
+        scale = jax.nn.softplus(log_scale) + self.min_noise
         return dist.Normal(loc, scale)
