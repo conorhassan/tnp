@@ -1,6 +1,7 @@
 from flax import nnx 
 import jax 
-from nnx_mod import TransformerBlock
+import jax.numpy as jnp
+from nnx.layers import TransformerBlock, TNPTransformer
 
 # class TNPTransformer(nnx.Module):
 #     def __init__(
@@ -38,8 +39,10 @@ if __name__ == "__main__":
         jax.random.normal(key3, (batch_dim, seq_dim, input_dim)),
     )
 
+    print("TESTING MULTIHEAD ATTENTION LAYER")
     print(transformer_encoder(q, k, v))
 
+    print("TESTING TRANSFORMER BLOCK")
     attention_block = TransformerBlock(
         input_dim=input_dim,
         hidden_dim=input_dim,
@@ -48,5 +51,19 @@ if __name__ == "__main__":
         rngs=nnx.Rngs(0),
     )
 
-    print(attention_block(q))
+    print(attention_block(q).shape)
     
+    print("TESTING THE TRANSFORMER NEURAL PROCESS")
+    tnp_transformer = TNPTransformer(
+        input_dim=64,
+        hidden_dim=64,
+        num_heads=4,
+        dropout_rate=0.2,
+        rngs=nnx.Rngs(0),
+    )
+
+    zc = jnp.ones((512, 10, 64))
+    zt = jnp.ones((512, 7, 64))
+
+    print(jnp.concatenate([zc, zt], axis=1).shape)
+    print(tnp_transformer(zc, zt).shape)
