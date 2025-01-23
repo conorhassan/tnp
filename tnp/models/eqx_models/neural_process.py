@@ -4,9 +4,9 @@ import equinox as eqx
 import numpyro.distributions as dist
 from jaxtyping import Array, Float
 
-from .likelihood import Likelihood 
-from .decoder import TNPDecoder
-from .encoder import TNPEncoder
+from tnp.models.eqx_models.likelihood import Likelihood 
+from tnp.models.eqx_models.decoder import TNPDecoder
+from tnp.models.eqx_models.encoder import TNPEncoder
 
 class NeuralProcess(eqx.Module, ABC): 
     """Represents a neural process base class.

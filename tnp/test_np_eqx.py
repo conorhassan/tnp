@@ -4,17 +4,15 @@ import optax
 import equinox as eqx
 from typing import Tuple 
 
-from tnp.models.encoder import TNPEncoder
-from tnp.models.likelihood import HeteroscedasticNormalLikelihood
-from tnp.models.decoder import TNPDecoder
-from tnp.models.neural_process import TNP
-from tnp.models.layers import TNPTransformer, make_mlp
+from tnp.models.eqx_models.encoder import TNPEncoder
+from tnp.models.eqx_models.likelihood import HeteroscedasticNormalLikelihood
+from tnp.models.eqx_models.decoder import TNPDecoder
+from tnp.models.eqx_models.neural_process import TNP
+from tnp.models.eqx_models.layers import TNPTransformer, make_mlp
+
+from tnp.data.simple_gp import SimpleGPGenerator
 
 from collections import deque
-# from tnp.models.gp import RBFKernel
-# from tnp.data.gp import RandomScaleGPGeneratorSameInputs
-
-from tnp.data.gp_redo import SimpleGPGenerator
 
 def create_model_and_optimizer(
     input_dim: int, 
@@ -116,11 +114,9 @@ if __name__ == "__main__":
     
     pred_dist = batched_forward(model, xc, yc, xt, key, False)
 
-
     # Sample from distribution
     key, sampling_key = jax.random.split(key)
     samples = jax.vmap(lambda d: d.sample(key=sampling_key, sample_shape=(100,)))(pred_dist)
 
     print(jnp.mean(samples, axis=1)[0, :, 0])
     print(yt[0, :, 0])
-    print("FIN")
