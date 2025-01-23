@@ -7,8 +7,8 @@ from jaxtyping import Array, Float
 from typing import Tuple, Optional
 from einops import pack, unpack, rearrange
 
-from nnx_models.layers import Identity
-from nnx_models.likelihood import Likelihood
+from tnp.models.nnx_models.layers import Identity
+from tnp.models.nnx_models.likelihood import Likelihood
 
 class TNPEncoder(nnx.Module):
     def __init__(
