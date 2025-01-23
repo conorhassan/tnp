@@ -1,7 +1,7 @@
 from flax import nnx 
 import jax 
 import jax.numpy as jnp
-from nnx.layers import TransformerBlock, TNPTransformer
+from nnx_models.layers import TransformerBlock, TNPTransformer
 
 # class TNPTransformer(nnx.Module):
 #     def __init__(
