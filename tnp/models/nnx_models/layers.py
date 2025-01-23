@@ -26,8 +26,13 @@ class MLP(nnx.Module):
         self.layers = []
         for idx in range(depth):
             self.layers.append(
-                nnx.Linear(dims[idx], dims[idx+1], rngs=rngs)
-            )
+                nnx.Linear(dims[idx], dims[idx+1], kernel_init=nnx.initializers.variance_scaling(
+                    scale=0.3,  # Reduced from 1.0 that glorot uses
+                    mode='fan_avg',  # This is what makes it "glorot-like"
+                    distribution='truncated_normal'
+                ), 
+                bias_init=nnx.initializers.zeros_init(), rngs=rngs)
+                )
             if idx < depth - 1:
                 self.layers.append(lambda x: jax.nn.gelu(x))
                 if dropout:
@@ -70,6 +75,18 @@ class TransformerBlock(nnx.Module):
             use_bias=use_bias,
             decode=decode,
             rngs=rngs,
+            kernel_init=nnx.initializers.variance_scaling(
+                scale=0.2,  # Standard for attention
+                mode='fan_in',
+                distribution='truncated_normal'
+            ),
+            out_kernel_init=nnx.initializers.variance_scaling(
+                scale=0.2,
+                mode='fan_avg',
+                distribution='uniform'
+            ),
+            bias_init=nnx.initializers.zeros_init(),
+            out_bias_init=nnx.initializers.zeros_init()
         )
         self.mlp = MLP(
             in_dim=self.input_dim,

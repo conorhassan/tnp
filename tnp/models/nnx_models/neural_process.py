@@ -31,16 +31,16 @@ class TNPEncoder(nnx.Module):
     ) -> Float[Array, "batch num_target latent_dim"]:
         yc, yt = self.preprocess_observations(xt, yc)
 
-        x, ps = pack([xc, xt], "batch (context_and_target) features")
+        x, ps = pack([xc, xt], "batch * features")
         x_encoded = self.x_encoder(x)
-        xc_encoded, xt_encoded = unpack(x_encoded, ps, "batch (context_and_target) features") 
+        xc_encoded, xt_encoded = unpack(x_encoded, ps, "batch * features") 
 
-        y, ps = pack([yc, yt], "batch (context_and_target) features")
+        y, ps = pack([yc, yt], "batch * features")
         y_encoded = self.y_encoder(y)
-        yc_encoded, yt_encoded = unpack(y_encoded, ps, "batch (context_and_target) features")
+        yc_encoded, yt_encoded = unpack(y_encoded, ps, "batch * features")
 
-        zc, _ = pack([xc_encoded, yc_encoded], "batch seq (d1 d2)")
-        zt, _ = pack([xt_encoded, yt_encoded], "batch seq (d1 d2)")
+        zc, _ = pack([xc_encoded, yc_encoded], "batch seq *")
+        zt, _ = pack([xt_encoded, yt_encoded], "batch seq *")
 
         zc = self.xy_encoder(zc)
         zt = self.xy_encoder(zt)
@@ -80,36 +80,51 @@ class TNPDecoder(nnx.Module):
 
 
 class NeuralProcess(nnx.Module, ABC): 
-    encoder: nnx.Module 
-    decoder: nnx.Module 
-    likelihood: Likelihood
+    def __init__(
+        self, 
+        encoder: nnx.Module, 
+        decoder: nnx.Module, 
+        likelihood: Likelihood
+    ):
+        self.encoder = encoder
+        self.decoder = decoder
+        self.likelihood = likelihood
 
 
 class ConditionalNeuralProcess(NeuralProcess):
+    def __init__(
+        self, 
+        encoder: nnx.Module, 
+        decoder: nnx.Module, 
+        likelihood: Likelihood
+    ):
+        super().__init__(encoder, decoder, likelihood)
+
     def __call__(
         self, 
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"],
         xt: Float[Array, "batch num_target input_dim"], 
-        key: jax.random.PRNGKey, 
-        enable_dropout: bool = False
     ) -> dist.Distribution:
-        z = self.encoder(xc, yc, xt, key, enable_dropout)
+        z = self.encoder(xc, yc, xt)
         pred = self.decoder(z, xt)
         return self.likelihood(pred)
     
 
 class TNP(ConditionalNeuralProcess):
-    encoder: TNPEncoder
-    decoder: TNPDecoder
-    likelihood: Likelihood
+    def __init__(
+        self, 
+        transformer_encoder: nnx.Module, 
+        xy_encoder: nnx.Module, 
+        z_decoder: nnx.Module, 
+        likelihood: Likelihood
+    ):
+        super().__init__(TNPEncoder(transformer_encoder, xy_encoder), TNPDecoder(z_decoder), likelihood)
 
     def __call__(
         self,
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"], 
         xt: Float[Array, "batch num_target input_dim"], 
-        key: jax.random.PRNGKey, 
-        enable_dropout: bool = False
     ) -> dist.Distribution:
         return super().__call__(xc, yc, xt)
