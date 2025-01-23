@@ -5,49 +5,22 @@ uv pip install -r requirements.txt
 ```
 # TODO: 
 
-- training loop 
-- use the jaxtyping library for types!
-- try and refactor code / understand. make it "more equinoxy"
-- proper example (i.e., fit the model, replicate the yaml)
+- use `jaxlightning` for training that automatically integrates with *WanDB*
+- get the `requirements.txt` thing to *actually* work
+- get the equinox and the nnx backend to work both with the same `yaml` config file
+  - Config matching original implementation
+    - use MA's config as a guide
+- get the code running on the Aalto system
+    - save down the model checkpoint 
 
-**Training loop would involve:**
+**Nice things to do on top:** 
 
-- Loss function (negative log likelihood)
-- Optimizer (optax)
-- Batch generation
-- *jitted* training step
-- *WanDB* integration?
-
-"More equinoxy" refactoring would include:
-- Using dataclasses properly
-- Better module composition
-- Proper filtering for training/inference
-  - really interested in this! 
-Config management
-Proper example would involve:
-
-Heteroskedastic regression demo
-- Visualization
-- Config matching original implementation
-  - use MA's config as a guide
-Visualization
-Config matching original implementation
-Which area would you like to explore first?
-
-- need to adjust the file structure 
-
-- need to have data loader code
-
-- need to have the data 
-
-- need to have training code 
-
-- set up training on WANDB 
-
-- need to "manage" the package better
+- understand the way that random number generators work in `nnx`
+- make the use of `jaxtyping` and the docstrings more homogeneous
+- note the two buggy things that you found with `nnx`
 
 
-### Notes for transition to CLUSTER: 
+**Notes for transition to CLUSTER:**
 
 Add it in your job submission script (e.g., your .sh file):
 
