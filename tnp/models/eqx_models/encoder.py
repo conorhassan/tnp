@@ -5,7 +5,6 @@ from jaxtyping import Array, Float
 from typing import Tuple
 from einops import pack, unpack
 
-
 class TNPEncoder(eqx.Module):
     """Transformer Neural Process Encoder. 
     
