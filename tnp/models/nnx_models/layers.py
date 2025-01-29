@@ -17,32 +17,51 @@ class MLP(nnx.Module):
         in_dim: int, 
         out_dim: int, 
         rngs: nnx.Rngs, 
-        width_size: int = 64, 
+        width_size: int = 64,
         depth: int = 3, 
         dropout: bool = True, 
         dropout_rate: float = 0.2,
     ):
-        dims = [in_dim] + [width_size] * (depth-1) + [out_dim]
-        self.layers = []
-        for idx in range(depth):
-            self.layers.append(
-                nnx.Linear(dims[idx], dims[idx+1], kernel_init=nnx.initializers.variance_scaling(
-                    scale=0.3,  # Reduced from 1.0 that glorot uses
-                    mode='fan_avg',  # This is what makes it "glorot-like"
-                    distribution='truncated_normal'
-                ), 
-                bias_init=nnx.initializers.zeros_init(), rngs=rngs)
-                )
-            if idx < depth - 1:
-                self.layers.append(lambda x: jax.nn.gelu(x))
-                if dropout:
-                    self.layers.append(
-                        nnx.Dropout(dropout_rate, rngs=rngs)
-                    )
+        kernel_init = nnx.initializers.variance_scaling(
+            scale=0.3,
+            mode='fan_avg',
+            distribution='truncated_normal'
+        )
+        bias_init = nnx.initializers.zeros_init()
 
-    def __call__(self, x: Float[Array, "..."]):
-        for layer in self.layers:
-            x = layer(x)
+        # First layer
+        self.linear1 = nnx.Linear(in_dim, width_size, 
+                                kernel_init=kernel_init, 
+                                bias_init=bias_init, 
+                                rngs=rngs)
+        self.dropout1 = nnx.Dropout(dropout_rate, rngs=rngs) if dropout else None
+
+        # Middle layer
+        self.linear2 = nnx.Linear(width_size, width_size,
+                                kernel_init=kernel_init,
+                                bias_init=bias_init,
+                                rngs=rngs)
+        self.dropout2 = nnx.Dropout(dropout_rate, rngs=rngs) if dropout else None
+
+        # Final layer
+        self.linear3 = nnx.Linear(width_size, out_dim,
+                                kernel_init=kernel_init,
+                                bias_init=bias_init,
+                                rngs=rngs)
+        self.use_dropout = dropout
+
+    def __call__(self, x):
+        x = self.linear1(x)
+        x = jax.nn.gelu(x)
+        if self.use_dropout:
+            x = self.dropout1(x)
+            
+        x = self.linear2(x)
+        x = jax.nn.gelu(x)
+        if self.use_dropout:
+            x = self.dropout2(x)
+            
+        x = self.linear3(x)
         return x
 
 class TransformerBlock(nnx.Module):
@@ -116,6 +135,7 @@ class TNPTransformer(nnx.Module):
         hidden_dim: int = 64,
         num_heads: int = 4,
         dropout_rate: float = 0.2,
+        deterministic: bool = True,
         rngs: nnx.Rngs = nnx.Rngs(0),
     ):
         self.transformer = TransformerBlock(
@@ -124,6 +144,7 @@ class TNPTransformer(nnx.Module):
             out_dim=input_dim,
             num_heads=num_heads,
             dropout_rate=dropout_rate,
+            deterministic=deterministic,
             rngs=rngs
         )
     
