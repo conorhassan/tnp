@@ -1,1 +1,20 @@
 .venv/
+
+# Virtual environments
+test_env*/
+test_final_env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Package info
+*.egg-info/
+
+# Backup files
+*-backup.txt
+requirements.loose.txt
+requirements-clean.txt
+requirements-full.txt
+
