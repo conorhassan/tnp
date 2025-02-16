@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from flax import nnx 
-from nnx_models.likelihood import NormalLikelihood, HeteroscedasticNormalLikelihood
+from tnp.models.nnx_models.likelihood import NormalLikelihood, HeteroscedasticNormalLikelihood
 
 def test_likelihoods():
     # Test data

@@ -1,11 +1,11 @@
 import jax
 import jax.numpy as jnp
 
-from tnp.models.likelihood import HeteroscedasticNormalLikelihood
-from tnp.models.layers import make_mlp, TNPTransformer
-from tnp.models.encoder import TNPEncoder
-from tnp.models.decoder import TNPDecoder
-from tnp.models.neural_process import TNP
+from tnp.models.eqx_models.likelihood import HeteroscedasticNormalLikelihood
+from tnp.models.eqx_models.layers import make_mlp, TNPTransformer
+from tnp.models.eqx_models.encoder import TNPEncoder
+from tnp.models.eqx_models.decoder import TNPDecoder
+from tnp.models.eqx_models.neural_process import TNP
 
 print("make_mlp:", make_mlp)
 print("TNPEncoder:", TNPEncoder)

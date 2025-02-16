@@ -2,6 +2,7 @@ from abc import ABC
 import jax
 import jax.numpy as jnp
 from flax import nnx 
+from typing import Optional
 from jaxtyping import Array, Float
 
 class Identity(nnx.Module):
@@ -18,7 +19,6 @@ class MLP(nnx.Module):
         out_dim: int, 
         rngs: nnx.Rngs, 
         width_size: int = 64,
-        depth: int = 3, 
         dropout: bool = True, 
         dropout_rate: float = 0.2,
     ):
@@ -84,6 +84,8 @@ class TransformerBlock(nnx.Module):
 
         self.pre_layer_norm = nnx.LayerNorm(self.input_dim, rngs=rngs)
         self.post_layer_norm = nnx.LayerNorm(self.input_dim, rngs=rngs)
+        
+        # Unified attention for both context and target points
         self.attention = nnx.MultiHeadAttention(
             num_heads=num_heads,
             in_features=self.input_dim,
@@ -95,7 +97,7 @@ class TransformerBlock(nnx.Module):
             decode=decode,
             rngs=rngs,
             kernel_init=nnx.initializers.variance_scaling(
-                scale=0.2,  # Standard for attention
+                scale=0.2,
                 mode='fan_in',
                 distribution='truncated_normal'
             ),
@@ -107,27 +109,35 @@ class TransformerBlock(nnx.Module):
             bias_init=nnx.initializers.zeros_init(),
             out_bias_init=nnx.initializers.zeros_init()
         )
+        
         self.mlp = MLP(
             in_dim=self.input_dim,
             out_dim=self.input_dim,
             rngs=rngs,
             width_size=self.hidden_dim,
-            depth=3,
             dropout=True,
             dropout_rate=self.dropout_rate,
         )
 
     def __call__(
         self, 
-        x: Float[Array, "batch seq dim"], 
+        zc: Float[Array, "batch num_context dim"],
+        zt: Float[Array, "batch num_target dim"],
+        mask: Optional[Float[Array, "batch seq seq"]] = None
     ):
-        x = self.pre_layer_norm(x)
-        x = x + self.attention(x, x, x) # residual + attention
-        # do post layer norm and mlp on attention output and apply as residual
-        x_residual = self.post_layer_norm(x)
-        x_residual = self.mlp(x_residual)
-        return x + x_residual
-    
+        # Concatenate context and target points
+        z = jnp.concatenate([zc, zt], axis=1)
+        
+        # Apply attention with mask
+        z = self.pre_layer_norm(z)
+        z = z + self.attention(z, z, z, mask=mask)
+        
+        # Apply MLP and residual connection
+        z_residual = self.post_layer_norm(z)
+        z_residual = self.mlp(z_residual)
+        
+        return z_residual
+
 class TNPTransformer(nnx.Module):
     def __init__(
         self, 
@@ -151,7 +161,7 @@ class TNPTransformer(nnx.Module):
     def __call__(self, 
                  zc: Float[Array, "batch num_context dim"],
                  zt: Float[Array, "batch num_target dim"], 
+                 mask: Optional[Float[Array, "batch seq seq"]] = None
     ) -> Float[Array, "batch num_target dim"]:
-        z = jnp.concatenate([zc, zt], axis=1)
-        z = self.transformer(z)
-        return z[:, -zt.shape[1]:]
+        z = self.transformer(zc, zt, mask=mask)
+        return z

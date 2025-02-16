@@ -64,13 +64,14 @@ if __name__ == "__main__":
     generator = SimpleGPGenerator()
     key  = jax.random.PRNGKey(0)
 
-    @nnx.jit
     def train_step(model, optimizer, batch):
-        xc, yc, xt, yt = batch 
+        xc, yc, xt, yt, mask = batch 
 
         def loss_fn(model):
-            pred = model(xc, yc, xt)
-            return -jnp.mean(pred.log_prob(yt))
+            pred = model(xc, yc, xt, mask)
+            # Expand yt to match the shape of pred if necessary
+            yt_expanded = jnp.expand_dims(yt, axis=-1)  # Adjust the axis as needed
+            return -jnp.mean(pred.log_prob(yt_expanded))
 
         loss, grads = nnx.value_and_grad(loss_fn)(model)
         optimizer.update(grads)
@@ -82,6 +83,7 @@ if __name__ == "__main__":
     for i in range(1000):
         key, data_key = jax.random.split(key)
         batch = generator.generate_batch(data_key)
+        xc, yc, xt, yt, mask = batch  # Ensure the mask is part of the batch
         loss = train_step(model, optimizer, batch)
         losses.append(loss)
         avg_loss = sum(losses) / len(losses)

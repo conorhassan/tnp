@@ -5,6 +5,7 @@ from gpjax.gps import Prior
 from gpjax.mean_functions import Zero
 from typing import Tuple
 
+
 class SimpleGPGenerator:
 
     def __init__(
@@ -93,4 +94,17 @@ class SimpleGPGenerator:
         # split back into context and target 
         yc, yt = y[:, :nc], y[:, nc:]
 
-        return xc, yc, xt, yt
+        # Create a mask with consistent dimensions
+        num_heads = 4  # Adjust this to match your model's configuration
+        context_mask = jnp.ones((self.batch_size, num_heads, nc, nc))
+        target_to_context_mask = jnp.ones((self.batch_size, num_heads, nt, nc))
+        context_to_target_mask = jnp.zeros((self.batch_size, num_heads, nc, nt))
+        target_mask = jnp.zeros((self.batch_size, num_heads, nt, nt))
+
+        # Concatenate masks along the correct axis
+        mask = jnp.concatenate([
+            jnp.concatenate([context_mask, context_to_target_mask], axis=3),
+            jnp.concatenate([target_to_context_mask, target_mask], axis=3)
+        ], axis=2)
+ 
+        return xc, yc, xt, yt, mask 

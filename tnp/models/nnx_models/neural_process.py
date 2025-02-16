@@ -28,6 +28,7 @@ class TNPEncoder(nnx.Module):
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context input_dim"], 
         xt: Float[Array, "batch num_target output_dim"],
+        mask: Float[Array, "batch seq seq"]
     ) -> Float[Array, "batch num_target latent_dim"]:
         yc, yt = self.preprocess_observations(xt, yc)
 
@@ -45,7 +46,8 @@ class TNPEncoder(nnx.Module):
         zc = self.xy_encoder(zc)
         zt = self.xy_encoder(zt)
 
-        return self.transformer_encoder(zc, zt)
+        zt = self.transformer_encoder(zc, zt, mask)
+        return zt
     
     def preprocess_observations(
         self, 
@@ -60,7 +62,7 @@ class TNPEncoder(nnx.Module):
         yt = jnp.concatenate([yt, jnp.ones_like(yt[..., :1])], axis=-1)
 
         return yc, yt
-
+    
 
 class TNPDecoder(nnx.Module):
     def __init__(self, z_decoder: nnx.Module):
@@ -72,11 +74,12 @@ class TNPDecoder(nnx.Module):
         xt: Optional[Float[Array, "batch num_target input_dim"]] = None
     ) -> Float[Array, "batch num_target output_dim"]:
         if xt is not None:
-            num_target = xt.shape[0]
-            zt = rearrange(z[-num_target:, :], "b t d -> b t d")
+            # Filter the latent representation based on the number of target points
+            num_target = xt.shape[1]  # Ensure you use the correct dimension for batch processing
+            zt = rearrange(z[:, -num_target:, :], "b t d -> b t d")
         else: 
             zt = z
-        return self.z_decoder(zt)
+        return self.z_decoder(zt) 
 
 
 class NeuralProcess(nnx.Module, ABC): 
@@ -105,8 +108,9 @@ class ConditionalNeuralProcess(NeuralProcess):
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"],
         xt: Float[Array, "batch num_target input_dim"], 
+        mask: Float[Array, "batch seq seq"]
     ) -> dist.Distribution:
-        z = self.encoder(xc, yc, xt)
+        z = self.encoder(xc, yc, xt, mask)
         pred = self.decoder(z, xt)
         return self.likelihood(pred)
     
@@ -126,5 +130,6 @@ class TNP(ConditionalNeuralProcess):
         xc: Float[Array, "batch num_context input_dim"], 
         yc: Float[Array, "batch num_context output_dim"], 
         xt: Float[Array, "batch num_target input_dim"], 
+        mask: Float[Array, "batch seq seq"]
     ) -> dist.Distribution:
-        return super().__call__(xc, yc, xt)
+        return super().__call__(xc, yc, xt, mask)
