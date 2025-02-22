@@ -1,77 +1,49 @@
-from flax import nnx 
-import jax 
+import logging
+import hydra
+from omegaconf import DictConfig
+from flax import nnx
+import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
-from typing import Tuple
 from collections import deque
 
 from tnp.data.simple_gp import SimpleGPGenerator
-from tnp.models.nnx_models.layers import TNPTransformer, MLP
-from tnp.models.nnx_models.neural_process import TNP 
+from tnp.models.nnx_models.neural_process import TransformerNeuralProcess
 from tnp.models.nnx_models.likelihood import HeteroscedasticNormalLikelihood
 
-def create_model_and_optimizer(
-    input_dim: int, 
-    output_dim: int, 
-    latent_dim: int, 
-    learning_rate: float = 1e-3, 
-) -> Tuple[TNP, optax.GradientTransformation]:
-    
-    transformer_encoder = TNPTransformer(
-        input_dim=latent_dim,
-        hidden_dim=latent_dim,
-        num_heads=4,
-        dropout_rate=0.2,
-        rngs=nnx.Rngs(0),
+@hydra.main(config_path=None, config_name=None)
+def main(cfg: DictConfig):
+
+    logging.getLogger("cola").setLevel(logging.WARNING) 
+    logging.getLogger("hydra").setLevel(logging.WARNING)
+
+    # Initialize the model
+    model = TransformerNeuralProcess(
+        input_dim=cfg.model.input_dim,
+        output_dim=cfg.model.output_dim,
+        latent_dim=cfg.model.latent_dim,
+        hidden_dim=cfg.model.hidden_dim,
+        num_heads=cfg.model.num_heads,
+        dropout_rate=cfg.model.dropout_rate,
+        rngs=nnx.Rngs(cfg.training.rng_seed)
     )
 
-    xy_encoder = MLP(
-        in_dim=input_dim + output_dim,
-        out_dim=latent_dim,
-        rngs=nnx.Rngs(0),
-    )
-
-    decoder = MLP(
-        in_dim=latent_dim,
-        out_dim=output_dim,
-        rngs=nnx.Rngs(0),
-    )
-
-    likelihood = HeteroscedasticNormalLikelihood(min_noise=1e-3)
-
-    model = TNP(
-        transformer_encoder=transformer_encoder,
-        xy_encoder=xy_encoder,
-        z_decoder=decoder,
-        likelihood=likelihood,
-    )
-
-    optimizer = optax.chain(optax.adamw(learning_rate), optax.clip(0.1))
-
-    return model, optimizer
-
-if __name__ == "__main__":
-
-    model, optimizer = create_model_and_optimizer(
-        input_dim=1,
-        output_dim=2,
-        latent_dim=256,
-        learning_rate=1e-3,
-    )
-
+    # Initialize the optimizer
+    optimizer = optax.chain(optax.adamw(cfg.model.learning_rate), optax.clip(0.1))
     optimizer = nnx.Optimizer(model, optimizer)
 
-    generator = SimpleGPGenerator()
-    key  = jax.random.PRNGKey(0)
+    # Data generator
+    generator = SimpleGPGenerator(batch_size=cfg.training.batch_size)
+    key = jax.random.PRNGKey(cfg.training.rng_seed)
 
+    @nnx.jit
     def train_step(model, optimizer, batch):
-        xc, yc, xt, yt, mask = batch 
+        xc, yc, xt, yt, mask = batch
 
         def loss_fn(model):
             pred = model(xc, yc, xt, mask)
-            # Expand yt to match the shape of pred if necessary
-            yt_expanded = jnp.expand_dims(yt, axis=-1)  # Adjust the axis as needed
-            return -jnp.mean(pred.log_prob(yt_expanded))
+            return -jnp.mean(pred.log_prob(yt))
 
         loss, grads = nnx.value_and_grad(loss_fn)(model)
         optimizer.update(grads)
@@ -79,13 +51,18 @@ if __name__ == "__main__":
         return loss
 
     losses = deque(maxlen=100)
+    avg_losses = [] 
 
-    for i in range(1000):
+    for i in range(10):
         key, data_key = jax.random.split(key)
         batch = generator.generate_batch(data_key)
-        xc, yc, xt, yt, mask = batch  # Ensure the mask is part of the batch
         loss = train_step(model, optimizer, batch)
         losses.append(loss)
         avg_loss = sum(losses) / len(losses)
+        avg_losses.append(avg_loss)
         print(f"Step {i}, Loss: {avg_loss:.4f}")
-    print("MODEL RUNS THE FORWARD METHOD MULTIPLE TIMES WITH NO PROBLEMS!")
+
+    np.save("average_losses.npy", avg_losses)
+
+if __name__ == "__main__":
+    main()
